@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Security Gateway - Control Panel</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="stylesheet" href="../static/css/style.css">
+</head>
+
+<body>
+    <div class="layout">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="logo">
+                <span class="logo-icon">🛡️</span>
+                Gateway
+            </div>
+            <nav class="nav-menu">
+                <div class="nav-item active" onclick="switchTab('dashboard')">
+                    <span class="nav-icon">📊</span>
+                    <span>Dashboard</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('interfaces')">
+                    <span class="nav-icon">🔌</span>
+                    <span>Interfaces</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('routing')">
+                    <span class="nav-icon">🔀</span>
+                    <span>Routing</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('acl')">
+                    <span class="nav-icon">🔒</span>
+                    <span>Firewall Rules</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('nat')">
+                    <span class="nav-icon">🔄</span>
+                    <span>NAT / PAT</span>
+                </div>
+                <div class="nav-item" onclick="switchTab('traffic')">
+                    <span class="nav-icon">📈</span>
+                    <span>Traffic Monitor</span>
+                </div>
+            </nav>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Dashboard Tab -->
+            <div id="dashboard" class="tab-content active">
+                <div class="header">
+                    <h1 class="header-title">Dashboard</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-primary" onclick="loadDashboard()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div class="content-area">
+                    <div class="dashboard-grid">
+                        <div class="stat-card">
+                            <div class="stat-card-header">
+                                <div class="stat-card-icon bg-blue">🔌</div>
+                            </div>
+                            <div class="stat-card-value" id="dash-interfaces">-</div>
+                            <div class="stat-card-label">Active
+                                Interfaces</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-header">
+                                <div class="stat-card-icon bg-green">🔀</div>
+                            </div>
+                            <div class="stat-card-value" id="dash-routes">-</div>
+                            <div class="stat-card-label">Static Routes</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-header">
+                                <div class="stat-card-icon bg-red">🔒</div>
+                            </div>
+                            <div class="stat-card-value" id="dash-acls">-</div>
+                            <div class="stat-card-label">Firewall
+                                Rules</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-card-header">
+                                <div class="stat-card-icon bg-yellow">🔄</div>
+                            </div>
+                            <div class="stat-card-value" id="dash-nat">-</div>
+                            <div class="stat-card-label">NAT Sessions</div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Total Network Traffic</h2>
+                        </div>
+                        
+                        <div id="dashboardTrafficStats" style="display: flex; gap: 20px; padding: 0 15px; margin-bottom: 10px; font-size: 0.9rem; color: #666;">
+                            <span>Initializing...</span>
+                        </div>
+
+                        <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                            <canvas id="dashboardChart"></canvas>
+                        </div>
+                    </div>
+           
+                </div>
+            </div>
+
+            <!-- Interfaces Tab -->
+            <div id="interfaces" class="tab-content">
+                <div class="header">
+                    <h1 class="header-title">Network Interfaces</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-primary" onclick="loadInterfaces()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div class="content-area">
+                    <div id="alert-interfaces"></div>
+                    <div class="card">
+                        <table>
+                            <thead>
+                                <tr>
+                                  
+                                    <th>Interface Name</th>
+                                    <th>Status</th>
+                                    <th>IP Addresses</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="interfaces-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Routing Tab -->
+            <div id="routing" class="tab-content">
+                <div class="header">
+                    <h1 class="header-title">IP Routing Table</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-primary" onclick="openAddRouteModal()">+ Add
+                            Route</button>
+                        <button class="btn btn-secondary" onclick="loadRoutes()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div class="content-area">
+                    <div id="alert-routing"></div>
+                    <div class="card">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Destination Network</th>
+                                    <th>Next Hop</th>
+                                    <th>Interface</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="routes-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ACL/Firewall Tab -->
+            <div id="acl" class="tab-content">
+                <div class="header">
+                    <h1 class="header-title">Firewall Rules (ACLs)</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-primary" onclick="openAddAclModal()">+ Create
+                            ACL</button>
+                        <button class="btn btn-secondary" onclick="loadAcls()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div class="content-area">
+                    <div id="alert-acl"></div>
+                    <div id="acl-list"></div>
+                </div>
+            </div>
+
+            <!-- NAT Tab -->
+            <div id="nat" class="tab-content">
+                <div class="header">
+                    <h1 class="header-title">NAT / PAT Configuration</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-primary" onclick="openNatAddressModal()">+ Add NAT
+                            Pool</button>
+                        <button class="btn btn-secondary" onclick="loadNat()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div class="content-area">
+                    <div id="alert-nat"></div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">NAT44ED Plugin</h2>
+                            <button class="btn btn-success" onclick="enableNat()">Enable</button>
+                            <button class="btn btn-danger" onclick="disableNat()">Disable</button>
+                            <span id="nat-status" style="margin-left: 10px; font-weight: bold;"></span>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">NAT Interfaces</h2>
+                            <button class="btn btn-primary" onclick="openNatInterfaceModal()">Configure
+                                Interface</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Interface Index</th>
+                                    <th>Type</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="nat-interfaces-table"></tbody>
+                        </table>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Static NAT Mappings</h2>
+                            <button class="btn btn-primary" onclick="openStaticNatModal()">+ Add Mapping</button>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Local IP:Port</th>
+                                    <th>External IP:Port</th>
+                                    <th>Protocol</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="static-nat-table"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">NAT Address Pool</h2>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Public IP Address</th>
+                                    <th>VRF ID</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="nat-addresses-table"></tbody>
+                        </table>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Active NAT Sessions</h2>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Inside IP:Port</th>
+                                    <th>Outside IP:Port</th>
+                                    <th>Protocol</th>
+                                </tr>
+                            </thead>
+                            <tbody id="nat-sessions-table"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Traffic Monitor Tab -->
+<div id="traffic" class="tab-content">
+    <div class="header">
+        <h1 class="header-title">Real-Time Traffic Monitor</h1>
+        <div class="header-actions">
+            <span id="traffic-status" class="badge badge-neutral">Initializing...</span>
+        </div>
+    </div>
+    <div class="content-area">
+        
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Network Throughput (Mbps) - Last 60 Seconds</h2>
+            </div>
+            <div class="chart-container" style="position: relative; height: 350px; width: 100%;">
+                <canvas id="bandwidthChart"></canvas>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="card-header">
+                <h2 class="card-title">Current Packet Rate (PPS) & Drops</h2>
+            </div>
+            <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                <canvas id="packetsChart"></canvas>
+            </div>
+        </div>
+
+    </div>
+</div>
+
+        </div>
+    </div>
+    </div>
+    </div>
+    </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Add IP Modal -->
+    <div id="ip-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add IP Address</div>
+            <div class="form-group">
+                <label class="form-label">IP Address</label>
+                <input type="text" id="ip-address" class="form-input" placeholder="192.168.1.1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Prefix Length</label>
+                <input type="number" id="ip-prefix" class="form-input" value="24" min="1" max="32">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="addIpAddress()">Add
+                    IP</button>
+                <button class="btn btn-secondary" onclick="closeModal('ip-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit IP modal -->
+     <div id ="edit-ip-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Edit IP Address</div>
+            <div class="form-group">
+                <label class="form-label">IP Address</label>
+                <input type="text" id="edit-ip-address" class="form-input" placeholder="192.168.1.1">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Prefix Length</label>
+                <input type="number" id="edit-ip-prefix" class="form-input" value="24" min="1" max="32">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="saveEditedIp()">Add
+                    IP</button>
+                <button class="btn btn-secondary" onclick="closeModal('ip-modal')">Cancel</button>
+            </div>
+        </div>
+     </div>
+    <!-- Add Route Modal -->
+    <div id="route-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add Static Route</div>
+            <div class="form-group">
+                <label class="form-label">Destination Network</label>
+                <input type="text" id="route-dest" class="form-input" placeholder="192.168.2.0">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Prefix Length</label>
+                <input type="number" id="route-prefix" class="form-input" value="24" min="0" max="32">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Interface</label>
+                <select id="route-interface" class="form-select"></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Next Hop (optional)</label>
+                <input type="text" id="route-nexthop" class="form-input" placeholder="0.0.0.0" value="0.0.0.0">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="addRoute()">Add
+                    Route</button>
+                <button class="btn btn-secondary" onclick="closeModal('route-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add ACL Modal -->
+    <div id="acl-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Create Firewall Rule (ACL)</div>
+            <div class="form-group">
+                <label class="form-label">ACL Name/Tag</label>
+                <input type="text" id="acl-tag" class="form-input" placeholder="my-firewall-rule">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Rules</label>
+                <div id="acl-rules-container"></div>
+                <button class="btn btn-primary" onclick="addAclRule()">+ Add
+                    Rule</button>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="createAcl()">Create
+                    ACL</button>
+                <button class="btn btn-secondary" onclick="closeModal('acl-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NAT Address Modal -->
+    <div id="nat-address-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add NAT Pool Address</div>
+            <div class="form-group">
+                <label class="form-label">Public IP Address</label>
+                <input type="text" id="nat-ip" class="form-input" placeholder="203.0.113.1">
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="addNatAddress()">Add Address</button>
+                <button class="btn btn-secondary" onclick="closeModal('nat-address-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- NAT Interface Modal -->
+    <div id="nat-interface-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Configure NAT Interface</div>
+            <div class="form-group">
+                <label class="form-label">Interface</label>
+                <select id="nat-if-index" class="form-select"></select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Type</label>
+                <select id="nat-if-type" class="form-select">
+                    <option value="true">Inside (LAN)</option>
+                    <option value="false">Outside (WAN)</option>
+                </select>
+            </div>
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="configureNatInterface()">Configure</button>
+                <button class="btn btn-secondary" onclick="closeModal('nat-interface-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Static NAT Mapping Modal -->
+    <div id="static-nat-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add Static NAT Mapping</div>
+
+            <div class="form-group">
+                <label class="form-label">Local IP</label>
+                <input type="text" id="localIp" class="form-input" placeholder="e.g. 10.0.0.10">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Local Port</label>
+                <input type="number" id="localPort" class="form-input" placeholder="e.g. 8080">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">External IP</label>
+                <input type="text" id="externalIp" class="form-input" placeholder="e.g. 192.168.1.1">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">External Port</label>
+                <input type="number" id="externalPort" class="form-input" placeholder="e.g. 8001">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Protocol</label>
+                <select id="protocol" class="form-select">
+                    <option value="6">TCP</option>
+                    <option value="17">UDP</option>
+                </select>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="addStaticNat()">Add Mapping</button>
+                <button class="btn btn-secondary" onclick="closeModal('static-nat-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+
+
+    <script src="../static/js/utils.js"></script>
+    <script src="../static/js/interfaces.js"></script>
+    <script src="../static/js/routing.js"></script>
+    <script src="../static/js/dashboard.js"></script>
+    <script src="../static/js/acls.js"></script>
+    <script src="../static/js/nat.js"></script>
+    <script src="../static/js/traffic.js"></script>
+
+
+</body>
+
+</html>
