@@ -1,39 +1,75 @@
+from flask import g
 from vpp_papi.vpp_papi import VPPApiClient
 from vpp_papi.vpp_stats import VPPStats
 import logging
 
-vpp = None
-vpp_stats = None
+VPP_API_SOCKET = "/run/vpp/api.sock"
+VPP_STATS_SOCKET = "/dev/shm/vpp/stats.sock"
 
-def get_vpp_client():
-    v = VPPApiClient(server_address="/run/vpp/api.sock")
+
+def get_vpp_for_request():
+    """
+    Provides a fresh VPP connection for the current Flask request.
+    Connection is closed automatically in teardown_appcontext.
+    """
+    # If already created during this request -- use it
+    if hasattr(g, "vpp") and g.vpp is not None:
+        return g.vpp
+
     try:
-        v.connect("vpp-gui")
-    except Exception:
-        return None
-    return v
+        # Create API client
+        v = VPPApiClient(server_address=VPP_API_SOCKET, read_timeout=5)
+        v.connect("vpp-gui-request")
+        logging.info("✓ Connected to VPP API (per-request)")
 
-def get_vpp_connection():
-    """Get or reconnect to VPP API and stats"""
-    global vpp, vpp_stats
-    # print(vpp, vpp_stats)
-    try:
-        if vpp is None:
-            vpp = VPPApiClient(server_address="/run/vpp/api.sock",read_timeout=5)
-            vpp.connect("vpp-firewall-gui")
-            logging.info("✓ Connected to VPP API")
+        # Try connecting stats
+        try:
+            stats = VPPStats(socketname=VPP_STATS_SOCKET)
+            v.vpp_stats = stats
+            g.vpp_stats = stats
+        except Exception as e:
+            logging.warning(f"⚠ Could not connect to VPP stats: {e}")
+            g.vpp_stats = None
 
-        if vpp_stats is None:
-            vpp_stats = VPPStats(socketname="/dev/shm/vpp/stats.sock")
-            logging.info("✓ Connected to VPP stats segment")
-
-        # ✅ Attach under a safe name (not 'stats')
-        vpp.vpp_stats = vpp_stats
-
-        return vpp
+        # store in flask.g so route handlers can reuse within same request
+        g.vpp = v
+        return v
 
     except Exception as e:
-        logging.error(f"❌ Failed to connect to VPP: {e}")
-        vpp = None
-        vpp_stats = None
+        logging.error(f"❌ Failed to connect to VPP API: {e}")
+        g.vpp = None
+        g.vpp_stats = None
         return None
+
+
+def close_vpp_connection(response_or_exc):
+    """
+    This function will be called automatically after each request.
+    It cleans up VPP API & stats connections.
+    """
+    v = g.pop("vpp", None)
+    stats = g.pop("vpp_stats", None)
+
+    # Close VPP API connection
+    if v:
+        try:
+            v.disconnect()
+            logging.info("✓ VPP API disconnected (per-request)")
+        except Exception:
+            logging.exception("Error disconnecting VPP API")
+
+    # Close stats connection if possible
+    if stats and hasattr(stats, "close"):
+        try:
+            stats.close()
+        except Exception:
+            logging.exception("Error closing VPP stats")
+
+    return response_or_exc
+
+
+def init_vpp_teardown(app):
+    """
+    Call this from create_app() to register automatic cleanup.
+    """
+    app.teardown_appcontext(close_vpp_connection)

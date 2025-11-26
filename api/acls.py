@@ -1,15 +1,16 @@
 from flask import Blueprint, jsonify, request
-from vpp_connection import get_vpp_connection
+from vpp_connection import get_vpp_for_request
 import ipaddress
 import traceback
 
 acls_bp = Blueprint('acls', __name__)
 
+
 @acls_bp.route('/api/acls', methods=['GET'])
 def get_acls():
     """Get all ACLs"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
@@ -20,12 +21,13 @@ def get_acls():
             rules = []
             for rule in acl.r:
                 try:
-                    # Handle modern vpp_papi objects
+                    # Source prefix
                     if isinstance(rule.src_prefix, ipaddress._BaseNetwork):
                         src_prefix = str(rule.src_prefix)
                     else:
                         src_prefix = f"{rule.src_prefix.address}/{rule.src_prefix.len}"
 
+                    # Destination prefix
                     if isinstance(rule.dst_prefix, ipaddress._BaseNetwork):
                         dst_prefix = str(rule.dst_prefix)
                     else:
@@ -41,6 +43,7 @@ def get_acls():
                         'dst_port_min': int(rule.dstport_or_icmpcode_first),
                         'dst_port_max': int(rule.dstport_or_icmpcode_last)
                     })
+
                 except Exception as e:
                     print(f"Error processing ACL rule: {e}")
                     continue
@@ -60,11 +63,12 @@ def get_acls():
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 
+
 @acls_bp.route('/api/acl', methods=['POST'])
 def create_acl():
     """Create a new ACL"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
@@ -74,19 +78,16 @@ def create_acl():
 
         acl_rules = []
         for rule in rules:
-            # Get IP strings and prefix lengths
-            src_ip_str = rule.get('src_ip', '0.0.0.0')
-            dst_ip_str = rule.get('dst_ip', '0.0.0.0')
-            
-            # Determine prefix lengths
-            src_prefix_len = int(rule.get('src_prefix_len', 32 if src_ip_str != '0.0.0.0' else 0))
-            dst_prefix_len = int(rule.get('dst_prefix_len', 32 if dst_ip_str != '0.0.0.0' else 0))
+            # IP + prefix length
+            src_ip = rule.get('src_ip', '0.0.0.0')
+            dst_ip = rule.get('dst_ip', '0.0.0.0')
 
-            # Create IP network objects - VPP API will handle the conversion
-            src_network = ipaddress.ip_network(f"{src_ip_str}/{src_prefix_len}", strict=False)
-            dst_network = ipaddress.ip_network(f"{dst_ip_str}/{dst_prefix_len}", strict=False)
+            src_prefix_len = int(rule.get('src_prefix_len', 32 if src_ip != '0.0.0.0' else 0))
+            dst_prefix_len = int(rule.get('dst_prefix_len', 32 if dst_ip != '0.0.0.0' else 0))
 
-            # Prepare ACL rule using the prefix format
+            src_network = ipaddress.ip_network(f"{src_ip}/{src_prefix_len}", strict=False)
+            dst_network = ipaddress.ip_network(f"{dst_ip}/{dst_prefix_len}", strict=False)
+
             acl_rule = {
                 'is_permit': 1 if rule.get('action', 'permit') == 'permit' else 0,
                 'src_prefix': src_network,
@@ -102,18 +103,17 @@ def create_acl():
 
             acl_rules.append(acl_rule)
 
-        # Logging in human-readable format
+        # ✔ KEEP LOGS
         print(f"Sending ACL '{tag}' with {len(acl_rules)} rule(s) to VPP:")
         for r in acl_rules:
             print(
                 f"{'PERMIT' if r['is_permit'] else 'DENY'} "
                 f"{r['src_prefix']} -> {r['dst_prefix']} "
                 f"proto {r['proto']} "
-                f"sports {r['srcport_or_icmptype_first']}-{r['srcport_or_icmptype_last']} -> "
-                f"dports {r['dstport_or_icmpcode_first']}-{r['dstport_or_icmpcode_last']}"
+                f"sports {r['srcport_or_icmptype_first']}-{r['srcport_or_icmptype_last']} "
+                f"-> dports {r['dstport_or_icmpcode_first']}-{r['dstport_or_icmpcode_last']}"
             )
 
-        # Send to VPP
         resp = v.api.acl_add_replace(
             acl_index=0xFFFFFFFF,
             tag=tag,
@@ -130,26 +130,30 @@ def create_acl():
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 
+
 @acls_bp.route('/api/acl/<int:acl_index>', methods=['DELETE'])
 def delete_acl(acl_index):
     """Delete an ACL by index"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
         v.api.acl_del(acl_index=acl_index)
+
         return jsonify({'success': True, 'deleted_acl': acl_index})
+
     except Exception as e:
         print(f"Error deleting ACL: {e}")
         return jsonify({'error': str(e)}), 500
+
 
 
 @acls_bp.route('/api/acl/<int:acl_index>/interface/<int:sw_if_index>', methods=['POST', 'DELETE'])
 def apply_acl_to_interface(acl_index, sw_if_index):
     """Attach or detach an ACL to/from a specific interface"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
@@ -158,6 +162,7 @@ def apply_acl_to_interface(acl_index, sw_if_index):
         is_add = 1 if request.method == 'POST' else 0
 
         current = v.api.acl_interface_list_dump(sw_if_index=sw_if_index)
+
         current_input = []
         current_output = []
 
@@ -165,6 +170,7 @@ def apply_acl_to_interface(acl_index, sw_if_index):
             current_input = list(entry.acls[:entry.n_input])
             current_output = list(entry.acls[entry.n_input:])
 
+        # Modify ACL list based on action
         if is_input:
             if is_add and acl_index not in current_input:
                 current_input.append(acl_index)
@@ -177,6 +183,7 @@ def apply_acl_to_interface(acl_index, sw_if_index):
                 current_output.remove(acl_index)
 
         updated_acls = current_input + current_output
+
         v.api.acl_interface_set_acl_list(
             sw_if_index=sw_if_index,
             count=len(updated_acls),
@@ -185,6 +192,7 @@ def apply_acl_to_interface(acl_index, sw_if_index):
         )
 
         action = "attached" if is_add else "detached"
+
         return jsonify({
             'success': True,
             'interface': sw_if_index,
