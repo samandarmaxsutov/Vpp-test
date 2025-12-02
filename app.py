@@ -10,23 +10,36 @@ from api.stats import stats_bp
 from api.dashboard import dashboard_bp
 from api.dhcp import dhcp_bp
 
-app = Flask(__name__)
-CORS(app)
+# Import VPP teardown initializer
+from vpp_connection import init_vpp_teardown
 
-# Register all blueprints
-app.register_blueprint(interfaces_bp)
-app.register_blueprint(routes_bp)
-app.register_blueprint(acls_bp)
-app.register_blueprint(nat_bp)
-app.register_blueprint(stats_bp)
-app.register_blueprint(dashboard_bp)
-app.register_blueprint(dhcp_bp)
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+def create_app():
+    app = Flask(__name__)
+    CORS(app)
+
+    # Register all blueprints (no route changes!)
+    app.register_blueprint(interfaces_bp)
+    app.register_blueprint(routes_bp)
+    app.register_blueprint(acls_bp)
+    app.register_blueprint(nat_bp)
+    app.register_blueprint(stats_bp)
+    app.register_blueprint(dashboard_bp)
+    app.register_blueprint(dhcp_bp)
+
+    # Register per-request VPP teardown cleanup
+    init_vpp_teardown(app)
+
+    # Frontend route untouched
+    @app.route('/')
+    def index():
+        return render_template('index.html')
+
+    return app
+
+
+app = create_app()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
- 
-    
+    # ❗ Debug mode DISABLED — prevents reloader from breaking VPP socket
+    app.run(host='0.0.0.0', port=5000, debug=False)

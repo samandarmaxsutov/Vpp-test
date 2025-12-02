@@ -1,53 +1,45 @@
 from flask import Blueprint, jsonify, request
-from vpp_connection import get_vpp_connection
+from vpp_connection import get_vpp_for_request
 import ipaddress
 import traceback
 
 nat_bp = Blueprint('nat', __name__)
 
 
-
 @nat_bp.route('/api/nat/plugin', methods=['GET'])
 def get_nat_plugin_status():
     """Get NAT44ED plugin real runtime status"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
-        
-
         # Query actual runtime config
         cfg = v.api.nat44_show_running_config()
-        interfaces = list(v.api.nat44_interface_dump()) 
-        addresses = list(v.api.nat44_address_dump()) 
+        interfaces = list(v.api.nat44_interface_dump())
+        addresses = list(v.api.nat44_address_dump())
         nat_active = bool(interfaces or addresses)  # True if NAT is actively forwarding
-        if cfg.sessions==0:
-            plugin_loaded = False
-        else:
-            plugin_loaded =True
+
+        plugin_loaded = True if getattr(cfg, "sessions", 0) != 0 else False
+
         return jsonify({
             'plugin_loaded': plugin_loaded,
             'nat_active': nat_active,
-            'inside_vrf': cfg.inside_vrf,
-            'outside_vrf': cfg.outside_vrf,
-            'sessions': cfg.sessions,
-            'flags': cfg.flags
+            'inside_vrf': getattr(cfg, "inside_vrf", None),
+            'outside_vrf': getattr(cfg, "outside_vrf", None),
+            'sessions': getattr(cfg, "sessions", 0),
+            'flags': getattr(cfg, "flags", 0)
         })
 
     except Exception as e:
-        import traceback
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
-
-
-
 
 
 @nat_bp.route('/api/nat/plugin', methods=['POST'])
 def enable_nat():
     """Enable NAT44 plugin"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
@@ -60,7 +52,6 @@ def enable_nat():
         })
 
     except Exception as e:
-        import traceback
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
 
@@ -68,7 +59,7 @@ def enable_nat():
 def disable_nat():
     """Disable NAT44 plugin"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
@@ -81,7 +72,6 @@ def disable_nat():
         })
 
     except Exception as e:
-        import traceback
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
 
@@ -89,21 +79,22 @@ def disable_nat():
 def get_nat_interfaces():
     """Get all NAT-configured interfaces"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        
+
         result = []
         for nat_if in v.api.nat44_interface_dump():
+            # bitmasks: NAT44_EI_IF_INSIDE = 0x20, NAT44_EI_IF_OUTSIDE = 0x10
             result.append({
                 'sw_if_index': int(nat_if.sw_if_index),
                 'flags': int(nat_if.flags),
-                'is_inside': bool(nat_if.flags & 32),
-                'is_outside': bool(nat_if.flags & 16)
+                'is_inside': bool(nat_if.flags & 0x20),
+                'is_outside': bool(nat_if.flags & 0x10)
             })
-                
+
         return jsonify(result)
-    
+
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error in get_nat_interfaces: {e}\n{error_trace}")
@@ -114,7 +105,7 @@ def get_nat_interfaces():
 def configure_nat_interface(sw_if_index):
     """Configure NAT on an interface (inside or outside)"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
@@ -129,7 +120,7 @@ def configure_nat_interface(sw_if_index):
         else:
             flags |= 0x10  # NAT44_EI_IF_OUTSIDE
 
-        # Optional: additional features
+        # Optional: additional features (keep as before)
         flags |= 0x02  # NAT44_EI_CONNECTION_TRACKING
 
         print(f"Configuring NAT: sw_if_index={sw_if_index}, is_inside={is_inside}, flags={flags}, is_add={is_add}")
@@ -152,8 +143,8 @@ def configure_nat_interface(sw_if_index):
                 verification.append({
                     'sw_if_index': int(nat_if.sw_if_index),
                     'flags': int(nat_if.flags),
-                    'is_inside': bool(nat_if.flags & 0x10),   # correct bitmask for inside
-                    'is_outside': bool(nat_if.flags & 0x20)  # correct bitmask for outside
+                    'is_inside': bool(nat_if.flags & 0x20),
+                    'is_outside': bool(nat_if.flags & 0x10)
                 })
         print(f"Verification: {verification}")
 
@@ -175,24 +166,25 @@ def configure_nat_interface(sw_if_index):
 def get_nat_addresses():
     """Get all NAT address pool entries"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        
+
         result = []
         for addr in v.api.nat44_address_dump():
-            if isinstance(addr.ip_address, bytes):
+            # addr.ip_address may be bytes or an object — handle both
+            if isinstance(getattr(addr, "ip_address", None), (bytes, bytearray)):
                 ip_str = str(ipaddress.IPv4Address(addr.ip_address))
             else:
-                ip_str = str(addr.ip_address)
-            
+                ip_str = str(getattr(addr, "ip_address", addr))
+
             result.append({
                 'ip_address': ip_str,
-                'vrf_id': int(addr.vrf_id)
+                'vrf_id': int(getattr(addr, "vrf_id", 0))
             })
-        
+
         return jsonify(result)
-    
+
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error in get_nat_addresses: {e}\n{error_trace}")
@@ -203,20 +195,20 @@ def get_nat_addresses():
 def add_nat_address():
     """Add an IP address to the NAT address pool"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        
+
         data = request.json
         ip_address = data.get('ip_address')
-        
+
         if not ip_address:
             return jsonify({'error': 'IP address is required'}), 400
-        
+
         print(f"Adding NAT address: {ip_address}")
-        
+
         ip_obj = ipaddress.IPv4Address(ip_address)
-        
+
         v.api.nat44_add_del_address_range(
             first_ip_address=ip_obj,
             last_ip_address=ip_obj,
@@ -224,18 +216,18 @@ def add_nat_address():
             is_add=1,
             flags=0
         )
-        
+
         print(f"NAT address added successfully: {ip_address}")
-        
+
         addresses = list(v.api.nat44_address_dump())
         print(f"Current NAT addresses: {len(addresses)}")
-        
+
         return jsonify({
             'success': True,
             'message': 'NAT address added successfully',
             'ip_address': ip_address
         })
-    
+
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error in add_nat_address: {e}\n{error_trace}")
@@ -246,20 +238,20 @@ def add_nat_address():
 def remove_nat_address():
     """Remove an IP address from the NAT address pool"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        
+
         data = request.json
         ip_address = data.get('ip_address')
-        
+
         if not ip_address:
             return jsonify({'error': 'IP address is required'}), 400
-        
+
         print(f"Removing NAT address: {ip_address}")
-        
+
         ip_obj = ipaddress.IPv4Address(ip_address)
-        
+
         v.api.nat44_add_del_address_range(
             first_ip_address=ip_obj,
             last_ip_address=ip_obj,
@@ -267,15 +259,15 @@ def remove_nat_address():
             is_add=0,
             flags=0
         )
-        
+
         print(f"NAT address removed successfully: {ip_address}")
-        
+
         return jsonify({
             'success': True,
             'message': 'NAT address removed successfully',
             'ip_address': ip_address
         })
-    
+
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error in remove_nat_address: {e}\n{error_trace}")
@@ -286,40 +278,41 @@ def remove_nat_address():
 def get_nat_sessions():
     """Get all active NAT sessions"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        
+
         result = []
-        
+
         try:
             for user in v.api.nat44_user_dump():
                 for session in v.api.nat44_user_session_dump(
                     ip_address=user.ip_address,
                     vrf_id=user.vrf_id
                 ):
-                    if isinstance(session.inside_ip_address, bytes):
+                    if isinstance(getattr(session, "inside_ip_address", None), (bytes, bytearray)):
                         inside_ip = str(ipaddress.IPv4Address(session.inside_ip_address))
                     else:
-                        inside_ip = str(session.inside_ip_address)
-                    
-                    if isinstance(session.outside_ip_address, bytes):
+                        inside_ip = str(getattr(session, "inside_ip_address", session))
+
+                    if isinstance(getattr(session, "outside_ip_address", None), (bytes, bytearray)):
                         outside_ip = str(ipaddress.IPv4Address(session.outside_ip_address))
                     else:
-                        outside_ip = str(session.outside_ip_address)
-                    
+                        outside_ip = str(getattr(session, "outside_ip_address", session))
+
                     result.append({
                         'inside_ip': inside_ip,
-                        'inside_port': int(session.inside_port),
+                        'inside_port': int(getattr(session, "inside_port", 0)),
                         'outside_ip': outside_ip,
-                        'outside_port': int(session.outside_port),
-                        'protocol': int(session.protocol)
+                        'outside_port': int(getattr(session, "outside_port", 0)),
+                        'protocol': int(getattr(session, "protocol", 0))
                     })
-        except:
+        except Exception:
+            # silent if session dump not available or fails
             pass
-        
+
         return jsonify(result)
-    
+
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error in get_nat_sessions: {e}\n{error_trace}")
@@ -330,33 +323,33 @@ def get_nat_sessions():
 def get_static_mappings():
     """Get all static NAT mappings"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        
+
         result = []
         for mapping in v.api.nat44_static_mapping_dump():
-            if isinstance(mapping.local_ip_address, bytes):
+            if isinstance(getattr(mapping, "local_ip_address", None), (bytes, bytearray)):
                 local_ip = str(ipaddress.IPv4Address(mapping.local_ip_address))
             else:
-                local_ip = str(mapping.local_ip_address)
-            
-            if isinstance(mapping.external_ip_address, bytes):
+                local_ip = str(getattr(mapping, "local_ip_address", mapping))
+
+            if isinstance(getattr(mapping, "external_ip_address", None), (bytes, bytearray)):
                 external_ip = str(ipaddress.IPv4Address(mapping.external_ip_address))
             else:
-                external_ip = str(mapping.external_ip_address)
-            
+                external_ip = str(getattr(mapping, "external_ip_address", mapping))
+
             result.append({
                 'local_ip': local_ip,
-                'local_port': int(mapping.local_port) if hasattr(mapping, 'local_port') and mapping.local_port else None,
+                'local_port': int(getattr(mapping, "local_port", 0)) if getattr(mapping, "local_port", None) else None,
                 'external_ip': external_ip,
-                'external_port': int(mapping.external_port) if hasattr(mapping, 'external_port') and mapping.external_port else None,
-                'protocol': int(mapping.protocol) if hasattr(mapping, 'protocol') and mapping.protocol else None,
-                'vrf_id': int(mapping.vrf_id)
+                'external_port': int(getattr(mapping, "external_port", 0)) if getattr(mapping, "external_port", None) else None,
+                'protocol': int(getattr(mapping, "protocol", 0)) if getattr(mapping, "protocol", None) else None,
+                'vrf_id': int(getattr(mapping, "vrf_id", 0))
             })
-        
+
         return jsonify(result)
-    
+
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error in get_static_mappings: {e}\n{error_trace}")
@@ -367,22 +360,22 @@ def get_static_mappings():
 def add_static_mapping():
     """Add a static NAT mapping"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        
+
         data = request.json
         local_ip = data.get('local_ip')
         external_ip = data.get('external_ip')
         local_port = data.get('local_port')
         external_port = data.get('external_port')
         protocol = data.get('protocol', 6)
-        
+
         if not local_ip or not external_ip:
             return jsonify({'error': 'Local and external IPs are required'}), 400
-        
+
         print(f"Adding static NAT mapping: {local_ip}:{local_port} -> {external_ip}:{external_port}")
-        
+
         v.api.nat44_add_del_static_mapping(
             is_add=1,
             local_ip_address=ipaddress.IPv4Address(local_ip),
@@ -394,14 +387,14 @@ def add_static_mapping():
             external_sw_if_index=0xFFFFFFFF,
             flags=0
         )
-        
+
         print(f"Static NAT mapping added successfully")
-        
+
         return jsonify({
             'success': True,
             'message': 'Static NAT mapping added successfully'
         })
-    
+
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error in add_static_mapping: {e}\n{error_trace}")
@@ -412,22 +405,22 @@ def add_static_mapping():
 def remove_static_mapping():
     """Remove a static NAT mapping"""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        
+
         data = request.json
         local_ip = data.get('local_ip')
         external_ip = data.get('external_ip')
         local_port = data.get('local_port')
         external_port = data.get('external_port')
         protocol = data.get('protocol', 6)
-        
+
         if not local_ip or not external_ip:
             return jsonify({'error': 'Local and external IPs are required'}), 400
-        
+
         print(f"Removing static NAT mapping: {local_ip}:{local_port} -> {external_ip}:{external_port}")
-        
+
         v.api.nat44_add_del_static_mapping(
             is_add=0,
             local_ip_address=ipaddress.IPv4Address(local_ip),
@@ -439,14 +432,14 @@ def remove_static_mapping():
             external_sw_if_index=0xFFFFFFFF,
             flags=0
         )
-        
+
         print(f"Static NAT mapping removed successfully")
-        
+
         return jsonify({
             'success': True,
             'message': 'Static NAT mapping removed successfully'
         })
-    
+
     except Exception as e:
         error_trace = traceback.format_exc()
         print(f"Error in remove_static_mapping: {e}\n{error_trace}")

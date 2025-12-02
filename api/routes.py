@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request
-from vpp_connection import get_vpp_connection
+from vpp_connection import get_vpp_for_request
 import ipaddress
 import traceback
 import socket
@@ -10,7 +10,7 @@ routes_bp = Blueprint('routes', __name__)
 def get_routes():
     """List all IPv4 routes."""
     try:
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
@@ -20,17 +20,14 @@ def get_routes():
 
         # Dump all IPv4 routes
         routes = v.api.ip_route_dump(table={'table_id': 0, 'is_ip6': 0})
-      
+
         result = []
         for route in routes:
             prefix = route.route.prefix
-
-            # Build readable destination prefix
             dst_str = str(prefix)
 
-            # Extract each path (next-hop + interface)
             for path in route.route.paths:
-                # Some routes have empty next-hop (direct)
+                # Detect next-hop
                 if hasattr(path.nh, "address") and hasattr(path.nh.address, "ip4"):
                     nh_ip = ipaddress.IPv4Address(path.nh.address.ip4)
                     nh_str = str(nh_ip)
@@ -47,11 +44,11 @@ def get_routes():
         return jsonify(result)
 
     except Exception as e:
-        import traceback
         return jsonify({
             "error": str(e),
             "trace": traceback.format_exc()
         }), 500
+
 
 @routes_bp.route('/api/route', methods=['POST', 'DELETE'])
 def manage_route():
@@ -60,9 +57,7 @@ def manage_route():
     Uses ip_route_add_del_v2 when available (VPP ≥24.06),
     falls back to ip_route_add_del for older versions.
     """
-
     try:
-        # Parse input JSON
         data = request.get_json()
         if not data:
             return jsonify({"error": "Missing JSON payload"}), 400
@@ -75,19 +70,24 @@ def manage_route():
         if not dst:
             return jsonify({"error": "Missing destination"}), 400
 
-        v = get_vpp_connection()
+        v = get_vpp_for_request()
         if not v:
             return jsonify({"error": "VPP connection failed"}), 500
 
         # Convert IPs to binary
         dst_bin = socket.inet_pton(socket.AF_INET, dst)
-        nh_bin = socket.inet_pton(socket.AF_INET, next_hop)
 
-        # Choose proper API call
+        # Handle direct route
+        if next_hop in ["", "direct", None]:
+            nh_bin = b"\x00\x00\x00\x00"
+        else:
+            nh_bin = socket.inet_pton(socket.AF_INET, next_hop)
+
+        # Choose correct API call
         use_v2 = hasattr(v.api, "ip_route_add_del_v2")
         api_call = v.api.ip_route_add_del_v2 if use_v2 else v.api.ip_route_add_del
 
-        # Define the path entry
+        # Base path entry
         path_entry = {
             "sw_if_index": sw_if_index,
             "weight": 1,
@@ -95,16 +95,15 @@ def manage_route():
             "proto": 0,  # IPv4
         }
 
-        # Add next-hop and additional fields depending on API version
+        # Add fields for new/old API versions
         if use_v2:
-            # Create empty label stack with 16 elements (fixed size requirement)
             empty_label = {"label": 0, "ttl": 0, "exp": 0, "is_uniform": 0}
             label_stack = [empty_label] * 16
-            
+
             path_entry.update({
                 "nh": {"ip4": nh_bin},
                 "n_labels": 0,
-                "label_stack": label_stack  # Must be exactly 16 elements
+                "label_stack": label_stack
             })
         else:
             path_entry.update({
@@ -115,12 +114,12 @@ def manage_route():
                 "nh": {"address": {"af": 0, "un": {"ip4": nh_bin}}}
             })
 
-        # Wrap route object
+        # Route wrapper for both API versions
         if use_v2:
             route_data = {
                 "table_id": 0,
                 "prefix": {
-                    "af": 0,  # IPv4
+                    "af": 0,
                     "address": {"ip4": dst_bin},
                     "len": prefix_len
                 },
@@ -138,7 +137,7 @@ def manage_route():
                 "paths": [path_entry]
             }
 
-        # Perform add or delete
+        # Execute add/delete
         api_call(
             is_add=1 if request.method == "POST" else 0,
             is_multipath=False,
@@ -149,8 +148,6 @@ def manage_route():
         return jsonify({"status": f"Route {action} successfully"}), 200
 
     except Exception as e:
-        print("❌ Route management error:")
-        print(traceback.format_exc())
         return jsonify({
             "error": str(e),
             "trace": traceback.format_exc()
