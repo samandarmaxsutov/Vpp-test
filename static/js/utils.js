@@ -1,6 +1,40 @@
 // ../static/js/utils.js
 const API_BASE = 'http://localhost:5000/api';
+// ===================== URLS TAB =====================
+function loadUrls() {
+    const urlsContainer = document.getElementById('urls');
+    if (!urlsContainer) return;
 
+    // Only add iframe if it doesn't exist yet
+    if (!urlsContainer.querySelector('iframe')) {
+        urlsContainer.innerHTML = `
+            <div class="header">
+                <h1 class="header-title">MITM Proxy</h1>
+            </div>
+            <div class="content-area">
+                <div class="card">
+                    <div class="card-header">
+                        <h2 class="card-title">Proxy Interface</h2>
+                        <button class="btn btn-secondary" onclick="refreshProxy()">↻ Refresh</button>
+                    </div>
+                    <div class="card-body">
+                        <iframe 
+                            id="mitm-proxy-frame"
+                            src="http://127.0.0.1:8081" 
+                            style="width:100%; height:600px; border:1px solid #ccc;" 
+                            title="MITM Proxy">
+                        </iframe>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function refreshProxy() {
+    const iframe = document.getElementById('mitm-proxy-frame');
+    if (iframe) iframe.src = iframe.src; // reload iframe
+}
 // ===================== TAB MANAGEMENT =====================
 function switchTab(tabName) {
     document.querySelectorAll('.nav-item').forEach(item => item.classList.remove('active'));
@@ -17,6 +51,8 @@ function switchTab(tabName) {
     if (tabName === 'routing') loadRoutes();
     if (tabName === 'acl') loadAcls();
     if (tabName === 'nat') loadNat();
+    if (tabName === 'urls') loadUrls();
+
 
     // --- TRAFFIC MONITOR LOGIC ---
     // If we enter the traffic tab, start the timer

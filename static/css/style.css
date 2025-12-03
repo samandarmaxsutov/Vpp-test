@@ -6,8 +6,8 @@
 
 body {
     font-family: 'Inter', sans-serif;
-    background: #f5f7fa;
-    color: #2c3e50;
+    background: #F2F2F2;
+    color: #2A2A2A;
 }
 
 .layout {
@@ -18,7 +18,7 @@ body {
 
 /* Sidebar */
 .sidebar {
-    background: linear-gradient(180deg, #1e3a8a 0%, #1e40af 100%);
+    background: linear-gradient(180deg, #2A2A2A 0%, #4A4A4A 100%);
     color: white;
     padding: 0;
     box-shadow: 4px 0 10px rgba(0, 0, 0, 0.1);
@@ -36,7 +36,7 @@ body {
     display: inline-block;
     width: 32px;
     height: 32px;
-    background: #3b82f6;
+    background: #10B981;
     border-radius: 6px;
     margin-right: 10px;
     vertical-align: middle;
@@ -66,9 +66,9 @@ body {
 }
 
 .nav-item.active {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.2);
     color: white;
-    border-left: 3px solid #60a5fa;
+    border-left: 3px solid #10B981;
     font-weight: 600;
 }
 
@@ -95,7 +95,7 @@ body {
 .header-title {
     font-size: 24px;
     font-weight: 600;
-    color: #1e3a8a;
+    color: #10B981;
 }
 
 .header-actions {
@@ -143,12 +143,14 @@ body {
     align-items: center;
     justify-content: center;
     font-size: 24px;
+    background: #D1FAE5;
+    color: #10B981;
 }
 
 .stat-card-value {
     font-size: 32px;
     font-weight: 700;
-    color: #1e3a8a;
+    color: #10B981;
     margin-bottom: 5px;
 }
 
@@ -172,13 +174,13 @@ body {
     align-items: center;
     margin-bottom: 20px;
     padding-bottom: 15px;
-    border-bottom: 2px solid #f3f4f6;
+    border-bottom: 2px solid #F2F2F2;
 }
 
 .card-title {
     font-size: 18px;
     font-weight: 600;
-    color: #1e3a8a;
+    color: #10B981;
 }
 
 /* Tables */
@@ -189,24 +191,24 @@ table {
 }
 
 thead {
-    background: #f9fafb;
+    background: #F7F7F7;
 }
 
 th {
     padding: 12px 15px;
     text-align: left;
     font-weight: 600;
-    color: #374151;
-    border-bottom: 2px solid #e5e7eb;
+    color: #2A2A2A;
+    border-bottom: 2px solid #DDD;
 }
 
 td {
     padding: 12px 15px;
-    border-bottom: 1px solid #f3f4f6;
+    border-bottom: 1px solid #EEE;
 }
 
 tbody tr:hover {
-    background: #f9fafb;
+    background: #F7F7F7;
 }
 
 /* Buttons */
@@ -224,16 +226,16 @@ tbody tr:hover {
 }
 
 .btn-primary {
-    background: #3b82f6;
+    background: #10B981;
     color: white;
 }
 
 .btn-primary:hover {
-    background: #2563eb;
+    background: #059669;
 }
 
 .btn-success {
-    background: #10b981;
+    background: #10B981;
     color: white;
 }
 
@@ -242,21 +244,21 @@ tbody tr:hover {
 }
 
 .btn-danger {
-    background: #ef4444;
+    background: #b91c1c;
     color: white;
 }
 
 .btn-danger:hover {
-    background: #dc2626;
+    background: #991b1b;
 }
 
 .btn-secondary {
-    background: #6b7280;
+    background: #4A4A4A;
     color: white;
 }
 
 .btn-secondary:hover {
-    background: #4b5563;
+    background: #2A2A2A;
 }
 
 /* Status Badges */
@@ -269,18 +271,18 @@ tbody tr:hover {
 }
 
 .badge-success {
-    background: #d1fae5;
+    background: #D1FAE5;
     color: #065f46;
 }
 
 .badge-danger {
-    background: #fee2e2;
+    background: #FEE2E2;
     color: #991b1b;
 }
 
 .badge-info {
-    background: #dbeafe;
-    color: #1e40af;
+    background: #f3f4f6;
+    color: #4A4A4A;
 }
 
 /* Forms */
@@ -307,7 +309,7 @@ tbody tr:hover {
 .form-select {
     width: 100%;
     padding: 10px 12px;
-    border: 1px solid #d1d5db;
+    border: 1px solid #CCC;
     border-radius: 8px;
     font-size: 14px;
     transition: border-color 0.3s;
@@ -316,8 +318,8 @@ tbody tr:hover {
 .form-input:focus,
 .form-select:focus {
     outline: none;
-    border-color: #3b82f6;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    border-color: #10B981;
+    box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.15);
 }
 
 /* Modal */
@@ -353,10 +355,10 @@ tbody tr:hover {
     font-size: 20px;
     font-weight: 600;
     margin-bottom: 20px;
-    color: #1e3a8a;
+    color: #10B981;
 }
 
-/* Tab Content Visibility */
+/* Tabs */
 .tab-content {
     display: none;
 }
@@ -372,7 +374,7 @@ tbody tr:hover {
     margin-top: 20px;
 }
 
-/* Alert Messages */
+/* Alerts */
 .alert {
     padding: 12px 16px;
     border-radius: 8px;
@@ -381,15 +383,15 @@ tbody tr:hover {
 }
 
 .alert-success {
-    background: #d1fae5;
+    background: #D1FAE5;
     color: #065f46;
-    border-left: 4px solid #10b981;
+    border-left: 4px solid #10B981;
 }
 
 .alert-error {
-    background: #fee2e2;
+    background: #FEE2E2;
     color: #991b1b;
-    border-left: 4px solid #ef4444;
+    border-left: 4px solid #b91c1c;
 }
 
 /* Rule Item */
@@ -403,35 +405,26 @@ tbody tr:hover {
 
 /* Colors */
 .text-primary {
-    color: #3b82f6;
+    color: #10B981;
 }
 
 .text-success {
-    color: #10b981;
+    color: #10B981;
 }
 
 .text-danger {
-    color: #ef4444;
-}
-
-.bg-blue {
-    background: #dbeafe;
+    color: #b91c1c;
 }
 
 .bg-green {
-    background: #d1fae5;
+    background: #D1FAE5;
 }
 
-.bg-red {
-    background: #fee2e2;
-}
-
-.bg-yellow {
-    background: #fef3c7;
+.bg-gray {
+    background: #F2F2F2;
 }
 
 .btn-xs {
     padding: 4px 10px;
     font-size: 0.65rem;
 }
-

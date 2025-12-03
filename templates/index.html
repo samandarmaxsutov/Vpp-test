@@ -4,10 +4,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Security Gateway - Control Panel</title>
+    <title>Control Panel</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="../static/css/style.css">
+    <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.no-icons.min.css" rel="stylesheet">
+    <link href="//netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
+
+
 </head>
 
 <body>
@@ -15,33 +19,36 @@
         <!-- Sidebar -->
         <div class="sidebar">
             <div class="logo">
-                <span class="logo-icon">🛡️</span>
-                Gateway
+
+                Firewall
             </div>
             <nav class="nav-menu">
                 <div class="nav-item active" onclick="switchTab('dashboard')">
-                    <span class="nav-icon">📊</span>
-                    <span>Dashboard</span>
+                    <i class="icon-dashboard"></i> Dashboard
                 </div>
                 <div class="nav-item" onclick="switchTab('interfaces')">
-                    <span class="nav-icon">🔌</span>
-                    <span>Interfaces</span>
+                    <i class="icon-hdd"></i> Interfaces
                 </div>
                 <div class="nav-item" onclick="switchTab('routing')">
-                    <span class="nav-icon">🔀</span>
-                    <span>Routing</span>
+                    <i class="icon-sitemap"></i> Routing
                 </div>
                 <div class="nav-item" onclick="switchTab('acl')">
-                    <span class="nav-icon">🔒</span>
-                    <span>Firewall Rules</span>
+                    <i class="icon-shield"></i> Firewall Rules
                 </div>
                 <div class="nav-item" onclick="switchTab('nat')">
-                    <span class="nav-icon">🔄</span>
-                    <span>NAT / PAT</span>
+                    <i class="icon-retweet"></i> NAT / SNAT
                 </div>
                 <div class="nav-item" onclick="switchTab('traffic')">
-                    <span class="nav-icon">📈</span>
-                    <span>Traffic Monitor</span>
+                    <i class="icon-bar-chart"></i> Traffic Monitor
+                </div>
+                <div class="nav-item" onclick="switchTab('settings')">
+                    <i class="icon-cog"></i> Settings
+                </div>
+                <div class="nav-item" onclick="switchTab('urls')">
+                    <i class="icon-link"></i> URLs
+                </div>
+                <div class="nav-item" onclick="switchTab('logs')">
+                    <i class="icon-file-text"></i> Logs
                 </div>
             </nav>
         </div>
@@ -60,50 +67,50 @@
                     <div class="dashboard-grid">
                         <div class="stat-card">
                             <div class="stat-card-header">
-                                <div class="stat-card-icon bg-blue">🔌</div>
+                                <i class="icon-hdd icon-2x"></i>
                             </div>
                             <div class="stat-card-value" id="dash-interfaces">-</div>
-                            <div class="stat-card-label">Active
-                                Interfaces</div>
+                            <div class="stat-card-label">All Interfaces</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-card-header">
-                                <div class="stat-card-icon bg-green">🔀</div>
+                                <i class="icon-sitemap icon-2x"></i>
                             </div>
                             <div class="stat-card-value" id="dash-routes">-</div>
                             <div class="stat-card-label">Static Routes</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-card-header">
-                                <div class="stat-card-icon bg-red">🔒</div>
+                                <i class="icon-shield icon-2x"></i>
                             </div>
                             <div class="stat-card-value" id="dash-acls">-</div>
-                            <div class="stat-card-label">Firewall
-                                Rules</div>
+                            <div class="stat-card-label">Firewall Rules</div>
                         </div>
                         <div class="stat-card">
                             <div class="stat-card-header">
-                                <div class="stat-card-icon bg-yellow">🔄</div>
+                                <i class="icon-retweet icon-2x"></i>
                             </div>
                             <div class="stat-card-value" id="dash-nat">-</div>
                             <div class="stat-card-label">NAT Sessions</div>
                         </div>
                     </div>
-
                     <div class="card">
                         <div class="card-header">
                             <h2 class="card-title">Total Network Traffic</h2>
                         </div>
-                        
-                        <div id="dashboardTrafficStats" style="display: flex; gap: 20px; padding: 0 15px; margin-bottom: 10px; font-size: 0.9rem; color: #666;">
-                            <span>Initializing...</span>
+                        <div style="display: flex; gap: 30px; padding: 0 15px; margin-bottom: 10px; font-size: 0.9rem; color: #666;">
+                            <div id="dashboardTrafficStats" style="display: flex; gap: 20px;">
+                                <span>Initializing...</span>
+                            </div>
+                            <div style="border-left: 2px solid #e5e7eb; padding-left: 30px; display: flex; gap: 20px;" id="dashboardSystemStats">
+                                <div><b>CPU:</b> -</div>
+                                <div><b>Memory:</b> -</div>
+                            </div>
                         </div>
-
                         <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
                             <canvas id="dashboardChart"></canvas>
                         </div>
                     </div>
-           
                 </div>
             </div>
 
@@ -121,7 +128,7 @@
                         <table>
                             <thead>
                                 <tr>
-                                  
+
                                     <th>Interface Name</th>
                                     <th>Status</th>
                                     <th>IP Addresses</th>
@@ -175,6 +182,8 @@
                 <div class="content-area">
                     <div id="alert-acl"></div>
                     <div id="acl-list"></div>
+                    <div id="acl-interface-list"></div>
+                    <div id="acl-interface-bindings"></div>
                 </div>
             </div>
 
@@ -270,35 +279,53 @@
             </div>
 
             <!-- Traffic Monitor Tab -->
-<div id="traffic" class="tab-content">
-    <div class="header">
-        <h1 class="header-title">Real-Time Traffic Monitor</h1>
-        <div class="header-actions">
-            <span id="traffic-status" class="badge badge-neutral">Initializing...</span>
-        </div>
-    </div>
-    <div class="content-area">
-        
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Network Throughput (Mbps) - Last 60 Seconds</h2>
-            </div>
-            <div class="chart-container" style="position: relative; height: 350px; width: 100%;">
-                <canvas id="bandwidthChart"></canvas>
-            </div>
-        </div>
+            <div id="traffic" class="tab-content">
+                <div class="header">
+                    <h1 class="header-title">Real-Time Traffic Monitor</h1>
+                    <div class="header-actions">
+                        <span id="traffic-status" class="badge badge-neutral">Initializing...</span>
+                    </div>
+                </div>
+                <div class="content-area">
 
-        <div class="card">
-            <div class="card-header">
-                <h2 class="card-title">Current Packet Rate (PPS) & Drops</h2>
-            </div>
-            <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
-                <canvas id="packetsChart"></canvas>
-            </div>
-        </div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Network Throughput (Mbps) - Last 60 Seconds</h2>
+                        </div>
+                        <div class="chart-container" style="position: relative; height: 350px; width: 100%;">
+                            <canvas id="bandwidthChart"></canvas>
+                        </div>
+                    </div>
 
-    </div>
-</div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Current Packet Rate (PPS) & Drops</h2>
+                        </div>
+                        <div class="chart-container" style="position: relative; height: 300px; width: 100%;">
+                            <canvas id="packetsChart"></canvas>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- URLs Tab -->
+            <div id="urls" class="tab-content">
+                <div class="header">
+                    <h1 class="header-title">MITM Proxy</h1>
+                </div>
+                <div class="content-area">
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Proxy Interface</h2>
+                        </div>
+                        <div class="card-body">
+                            <iframe src="http://127.0.0.1:8081" style="width:100%; height:600px; border:1px solid #ccc;" title="MITM Proxy">
+                            </iframe>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
         </div>
     </div>
@@ -329,7 +356,7 @@
     </div>
 
     <!-- Edit IP modal -->
-     <div id ="edit-ip-modal" class="modal">
+    <div id="edit-ip-modal" class="modal">
         <div class="modal-content">
             <div class="modal-header">Edit IP Address</div>
             <div class="form-group">
@@ -346,7 +373,7 @@
                 <button class="btn btn-secondary" onclick="closeModal('ip-modal')">Cancel</button>
             </div>
         </div>
-     </div>
+    </div>
     <!-- Add Route Modal -->
     <div id="route-modal" class="modal">
         <div class="modal-content">

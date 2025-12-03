@@ -9,6 +9,7 @@ from api.nat import nat_bp
 from api.stats import stats_bp
 from api.dashboard import dashboard_bp
 from api.dhcp import dhcp_bp
+from api.policer import policers_bp
 
 # Import VPP teardown initializer
 from vpp_connection import init_vpp_teardown
@@ -26,6 +27,7 @@ def create_app():
     app.register_blueprint(stats_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(dhcp_bp)
+    app.register_blueprint(policers_bp)
 
     # Register per-request VPP teardown cleanup
     init_vpp_teardown(app)
@@ -42,4 +44,4 @@ app = create_app()
 
 if __name__ == '__main__':
     # ❗ Debug mode DISABLED — prevents reloader from breaking VPP socket
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    app.run(host='0.0.0.0', port=5000, debug=True)

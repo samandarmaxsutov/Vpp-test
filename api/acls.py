@@ -2,8 +2,163 @@ from flask import Blueprint, jsonify, request
 from vpp_connection import get_vpp_for_request
 import ipaddress
 import traceback
+# import logging
+
+# logging.basicConfig(level=logging.DEBUG)
+# logger = logging.getLogger(__name__)
 
 acls_bp = Blueprint('acls', __name__)
+
+
+@acls_bp.route('/api/acl/<int:acl_index>/rule', methods=['POST'])
+def add_acl_rule(acl_index):
+    try:
+        v = get_vpp_for_request()
+        if not v:
+            return jsonify({'error': 'Not connected to VPP'}), 500
+        print(dir(v.api))
+        print(v.api.__dict__.keys())
+        data = request.json
+        # logger.debug(dir(v.api))
+        # logger.debug(v.api.__dict__.keys())
+        src_ip = data.get('src_ip', '0.0.0.0')
+        dst_ip = data.get('dst_ip', '0.0.0.0')
+
+        src_prefix_len = int(data.get('src_prefix_len', 0 if src_ip == '0.0.0.0' else 32))
+        dst_prefix_len = int(data.get('dst_prefix_len', 0 if dst_ip == '0.0.0.0' else 32))
+
+        # Load VPP rule class
+        rule_cls = v.api._types['vl_api_acl_rule_t']
+
+        # Create new ACL rule struct
+        new_rule = rule_cls(
+            is_permit = 1 if data.get('action') == 'permit' else 0,
+            src_prefix = ipaddress.ip_network(f"{src_ip}/{src_prefix_len}", strict=False),
+            dst_prefix = ipaddress.ip_network(f"{dst_ip}/{dst_prefix_len}", strict=False),
+            proto = int(data.get('proto', 0)),
+            srcport_or_icmptype_first = int(data.get('src_port_min', 0)),
+            srcport_or_icmptype_last  = int(data.get('src_port_max', 65535)),
+            dstport_or_icmpcode_first = int(data.get('dst_port_min', 0)),
+            dstport_or_icmpcode_last  = int(data.get('dst_port_max', 65535)),
+            tcp_flags_mask = 0,
+            tcp_flags_value = 0
+        )
+
+ 
+        # Load existing ACL
+        acl_dump = v.api.acl_dump(acl_index=acl_index)
+        if not acl_dump:
+            return jsonify({'error': 'ACL not found'}), 404
+
+        # Copy existing rule structs
+        existing_rules = list(acl_dump[0].r)
+
+        # Append our new struct rule
+        existing_rules.append(new_rule)
+
+        rule_cls = v.api._msg_definitions['vl_api_acl_rule_t']
+        print(dir(rule_cls))
+
+        # Replace ACL with updated rule list
+        resp = v.api.acl_add_replace(
+            acl_index=acl_index,
+            tag=acl_dump[0].tag,
+            count=len(existing_rules),
+            r=existing_rules
+        )
+
+        return jsonify({
+            'success': True,
+            'acl_index': acl_index,
+            'rule_count': len(existing_rules)
+        })
+
+    except Exception as e:
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+
+
+
+@acls_bp.route('/api/acl/<int:acl_index>/rule/<int:rule_index>', methods=['DELETE'])
+def delete_acl_rule(acl_index, rule_index):
+    """Delete a specific rule from an ACL"""
+    try:
+        v = get_vpp_for_request()
+        if not v:
+            return jsonify({'error': 'Not connected to VPP'}), 500
+
+        acl_dump = v.api.acl_dump(acl_index=acl_index)
+        if not acl_dump:
+            return jsonify({'error': f'ACL {acl_index} not found'}), 404
+
+        rules = list(acl_dump[0].r)
+        if rule_index >= len(rules):
+            return jsonify({'error': f'Rule index {rule_index} out of range'}), 400
+
+        rules.pop(rule_index)
+
+        # Replace ACL
+        resp = v.api.acl_add_replace(
+            acl_index=acl_index,
+            tag=acl_dump[0].tag,
+            count=len(rules),
+            r=rules
+        )
+
+        return jsonify({'success': True, 'acl_index': acl_index, 'rule_count': len(rules)})
+
+    except Exception as e:
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
+
+
+@acls_bp.route('/api/acl/<int:acl_index>/rule/<int:rule_index>', methods=['PUT'])
+def edit_acl_rule(acl_index, rule_index):
+    """Edit a specific rule in an ACL"""
+    try:
+        v = get_vpp_for_request()
+        if not v:
+            return jsonify({'error': 'Not connected to VPP'}), 500
+
+        data = request.json
+
+        acl_dump = v.api.acl_dump(acl_index=acl_index)
+        if not acl_dump:
+            return jsonify({'error': f'ACL {acl_index} not found'}), 404
+
+        rules = list(acl_dump[0].r)
+        if rule_index >= len(rules):
+            return jsonify({'error': f'Rule index {rule_index} out of range'}), 400
+
+        # Build updated rule
+        src_ip = data.get('src_ip', str(rules[rule_index].src_prefix.network_address))
+        dst_ip = data.get('dst_ip', str(rules[rule_index].dst_prefix.network_address))
+        src_prefix_len = int(data.get('src_prefix_len', rules[rule_index].src_prefix.prefixlen))
+        dst_prefix_len = int(data.get('dst_prefix_len', rules[rule_index].dst_prefix.prefixlen))
+
+        rules[rule_index] = {
+            'is_permit': 1 if data.get('action', 'permit') == 'permit' else 0,
+            'src_prefix': ipaddress.ip_network(f"{src_ip}/{src_prefix_len}", strict=False),
+            'dst_prefix': ipaddress.ip_network(f"{dst_ip}/{dst_prefix_len}", strict=False),
+            'proto': int(data.get('proto', rules[rule_index].proto)),
+            'srcport_or_icmptype_first': int(data.get('src_port_min', rules[rule_index].srcport_or_icmptype_first)),
+            'srcport_or_icmptype_last': int(data.get('src_port_max', rules[rule_index].srcport_or_icmptype_last)),
+            'dstport_or_icmpcode_first': int(data.get('dst_port_min', rules[rule_index].dstport_or_icmpcode_first)),
+            'dstport_or_icmpcode_last': int(data.get('dst_port_max', rules[rule_index].dstport_or_icmpcode_last)),
+            'tcp_flags_mask': 0,
+            'tcp_flags_value': 0
+        }
+
+        # Replace ACL
+        resp = v.api.acl_add_replace(
+            acl_index=acl_index,
+            tag=acl_dump[0].tag,
+            count=len(rules),
+            r=rules
+        )
+
+        return jsonify({'success': True, 'acl_index': acl_index, 'rule_index': rule_index})
+
+    except Exception as e:
+        return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
 
 @acls_bp.route('/api/acls', methods=['GET'])
@@ -61,6 +216,52 @@ def get_acls():
         error_trace = traceback.format_exc()
         print(f"Error in get_acls: {e}\n{error_trace}")
         return jsonify({'error': str(e), 'trace': error_trace}), 500
+
+@acls_bp.route('/api/aclinterfaces', methods=['GET'])
+def get_interface_acls():
+    try:
+        v = get_vpp_for_request()
+        if not v:
+            return jsonify({'error': 'Not connected to VPP'}), 500
+
+        res = []
+
+        # Dump interfaces
+        intfs = v.api.sw_interface_dump(sw_if_index=0xffffffff)
+
+        for intf in intfs:
+            swid = intf.sw_if_index
+            name = intf.interface_name
+            if isinstance(name, bytes):
+                name = name.decode(errors='ignore')
+
+            # Dump ACLs applied to this interface
+            dump = v.api.acl_interface_list_dump(sw_if_index=swid)
+
+            input_acls = []
+            output_acls = []
+
+            for rec in dump:
+                if rec.sw_if_index != swid:
+                    continue
+
+                if rec.n_input > 0:
+                    input_acls = list(rec.acls[:rec.n_input])
+
+                if rec.count > rec.n_input:
+                    output_acls = list(rec.acls[rec.n_input:rec.count])
+
+            res.append({
+                "sw_if_index": swid,
+                "name": name,
+                "input_acls": input_acls,
+                "output_acls": output_acls
+            })
+
+        return jsonify(res)
+
+    except Exception as e:
+        return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 
 

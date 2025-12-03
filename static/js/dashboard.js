@@ -24,6 +24,9 @@ async function loadDashboard() {
             document.getElementById('dash-routes').textContent = data.routes;
             document.getElementById('dash-acls').textContent = data.acls;
             document.getElementById('dash-nat').textContent = data.nat_sessions;
+            
+            // Update CPU and Memory stats
+            updateSystemStats(data.cpu?.aggregate || 0, data.memory || 0);
         }
 
         // 2. Trigger Traffic Update
@@ -174,10 +177,33 @@ function updateStatsText(ifaceCount, totalRx, totalTx, rxSpeed, txSpeed) {
         };
 
         el.innerHTML = `
-            <div><b>Active Interfaces:</b> ${ifaceCount}</div>
+            <div><b>All Interfaces:</b> ${ifaceCount}</div>
             <div style="color: #10b981"><b>Download:</b> ${rxSpeed.toFixed(2)} Mbps</div>
             <div style="color: #3b82f6"><b>Upload:</b> ${txSpeed.toFixed(2)} Mbps</div>
             <div style="opacity: 0.6; font-size: 0.8em; padding-top:3px">Total Processed: ${formatBytes(totalRx + totalTx)}</div>
+        `;
+    }
+}
+
+function updateSystemStats(cpuPercent, memoryPercent) {
+    const el = document.getElementById("dashboardSystemStats");
+    if (el) {
+        // Determine color based on usage level
+        const getCpuColor = (val) => {
+            if (val >= 90) return '#ef4444'; // Red
+            if (val >= 70) return '#f59e0b'; // Orange
+            return '#10b981'; // Green
+        };
+        
+        const getMemColor = (val) => {
+            if (val >= 85) return '#ef4444'; // Red
+            if (val >= 70) return '#f59e0b'; // Orange
+            return '#3b82f6'; // Blue
+        };
+
+        el.innerHTML = `
+            <div style="color: ${getCpuColor(cpuPercent)}"><b>CPU:</b> ${cpuPercent.toFixed(1)}%</div>
+            <div style="color: ${getMemColor(memoryPercent)}"><b>Memory:</b> ${memoryPercent.toFixed(1)}%</div>
         `;
     }
 }

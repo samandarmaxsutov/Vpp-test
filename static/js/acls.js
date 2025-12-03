@@ -61,6 +61,8 @@ function addAclRule() {
     container.insertAdjacentHTML('beforeend', ruleHtml);
 }
 
+
+
 async function createAcl() {
     const tag = document.getElementById('acl-tag').value.trim();
     if (!tag) {
@@ -123,6 +125,7 @@ async function createAcl() {
         showAlert('alert-acl', `ACL "${tag}" created successfully (index ${data.acl_index})`);
         closeModal('acl-modal');
         loadAcls();
+   
     } catch (err) {
         showAlert('alert-acl', 'Failed to create ACL: ' + err.message, 'error');
     }
@@ -130,58 +133,245 @@ async function createAcl() {
 
 async function loadAcls() {
     try {
-        const res = await fetch(`${API_BASE}/acls`);
-        const data = await res.json();
+        // Fetch both ACLs and interface ACL bindings in parallel
+        const [aclsRes, interfacesRes] = await Promise.all([
+            fetch(`${API_BASE}/acls`),
+            fetch(`${API_BASE}/aclinterfaces`)
+        ]);
 
-        const container = document.getElementById('acl-list');
-        container.innerHTML = data.map(acl => `
-                    <div class="card">
-                        <div class="card-header">
-                            <h3 class="card-title">ACL ${acl.acl_index}: ${acl.tag}</h3>
-                            <span class="badge badge-info">${acl.count} rule(s)</span>
-                        </div>
-                        <table>
-                            <thead>
-                                <tr>
-                                    <th>Action</th>
-                                    <th>Protocol</th>
-                                    <th>Source</th>
-                                    <th>Destination</th>
-                                    <th>Ports</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                ${acl.rules.map(rule => `
-                                    <tr>
-                                        <td><span class="badge badge-${rule.is_permit ? 'success' : 'danger'}">
-                                            ${rule.is_permit ? 'PERMIT' : 'DENY'}
-                                        </span></td>
-                                        <td>${rule.proto === 0 ? 'ANY' : rule.proto === 1 ? 'ICMP' : rule.proto === 6 ? 'TCP' : rule.proto === 17 ? 'UDP' : rule.proto}</td>
-                                        <td>${rule.src_prefix}</td>
-                                        <td>${rule.dst_prefix}</td>
-                                        <td>${rule.src_port_min}-${rule.src_port_max} → ${rule.dst_port_min}-${rule.dst_port_max}</td>
-                                    </tr>
-                                `).join('')}
-                            </tbody>
-                        </table>
-                        <div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
-                            <select id="iface-select-${acl.acl_index}" class="form-select" style="width: 200px;">
-                                ${currentInterfaces.map(i => `<option value="${i.sw_if_index}">${i.name}</option>`).join('')}
-                            </select>
-                            <select id="direction-${acl.acl_index}" class="form-select" style="width: 150px;">
-                                <option value="true">Input</option>
-                                <option value="false">Output</option>
-                            </select>
-                            <button class="btn btn-success" onclick="applyAcl(${acl.acl_index}, true)">Apply to Interface</button>
-                            <button class="btn btn-danger" onclick="applyAcl(${acl.acl_index}, false)">Remove from Interface</button>
-                            <button class="btn btn-danger" onclick="deleteAcl(${acl.acl_index})" style="margin-left: auto;">Delete ACL</button>
-                        </div>
-                    </div>
-                `).join('');
+        const acls = await aclsRes.json();
+        const interfaces = await interfacesRes.json();
+
+        // Map ACL index → tag for easy display
+        const aclMap = {};
+        acls.forEach(acl => {
+            aclMap[acl.acl_index] = acl.tag;
+        });
+
+        // --- Render ACL List ---
+        const aclContainer = document.getElementById('acl-list');
+        aclContainer.innerHTML = acls.map(acl => `
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">ACL ${acl.acl_index}: ${acl.tag}</h3>
+                    <span class="badge badge-info">${acl.count} rule(s)</span>
+                </div>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Action</th>
+                            <th>Protocol</th>
+                            <th>Source</th>
+                            <th>Destination</th>
+                            <th>Ports</th>
+                            <th style="text-align:right;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${acl.rules.map((rule, idx) => `
+                            <tr>
+                                <td><span class="badge badge-${rule.is_permit ? 'success' : 'danger'}">
+                                    ${rule.is_permit ? 'PERMIT' : 'DENY'}
+                                </span></td>
+                                <td>${rule.proto === 0 ? 'ANY' : rule.proto === 1 ? 'ICMP' :
+                                    rule.proto === 6 ? 'TCP' : rule.proto === 17 ? 'UDP' : rule.proto}</td>
+                                <td>${rule.src_prefix}</td>
+                                <td>${rule.dst_prefix}</td>
+                                <td>${rule.src_port_min}-${rule.src_port_max} → ${rule.dst_port_min}-${rule.dst_port_max}</td>
+                                <td style="text-align:right; white-space: nowrap;">
+                                    <button class="btn btn-sm btn-primary" onclick="editRule(${acl.acl_index}, ${idx})">Edit</button>
+                                    <button class="btn btn-sm btn-danger" onclick="deleteRule(${acl.acl_index}, ${idx})">Delete</button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            
+
+                <div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
+                    <select id="iface-select-${acl.acl_index}" class="form-select" style="width: 200px;">
+                        ${currentInterfaces.map(i => `<option value="${i.sw_if_index}">${i.name}</option>`).join('')}
+                    </select>
+                    <select id="direction-${acl.acl_index}" class="form-select" style="width: 150px;">
+                        <option value="true">Input</option>
+                        <option value="false">Output</option>
+                    </select>
+                    <button class="btn btn-success" onclick="applyAcl(${acl.acl_index}, true)">Apply to Interface</button>
+                    <button class="btn btn-danger" onclick="applyAcl(${acl.acl_index}, false)">Remove from Interface</button>
+                    <button class="btn btn-danger" onclick="deleteAcl(${acl.acl_index})" style="margin-left: auto;">Delete ACL</button>
+                    <button class="btn btn-success" onclick="addRule(${acl.acl_index})" >Add Rule</button>
+                </div>
+            </div>
+        `).join('');
+
+        // --- Render Interface ACL Bindings ---
+        const intfContainer = document.getElementById('acl-interface-bindings');
+        intfContainer.innerHTML = `
+            <h2>Interface ACL Bindings</h2>
+            <div class="card">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Interface</th>
+                            <th>Input ACLs</th>
+                            <th>Output ACLs</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${interfaces.map(intf => `
+                            <tr>
+                                <td>${intf.name}</td>
+                                <td>${intf.input_acls.length 
+                                    ? intf.input_acls.map(i => aclMap[i] || i).join(', ') 
+                                    : 'None'}</td>
+                                <td>${intf.output_acls.length 
+                                    ? intf.output_acls.map(i => aclMap[i] || i).join(', ') 
+                                    : 'None'}</td>
+                                <td>
+                                    <button class="btn btn-sm btn-primary" onclick="modifyInterfaceAcls(${intf.sw_if_index})">
+                                        Modify
+                                    </button>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            </div>
+        `;
+
     } catch (err) {
-        showAlert('alert-acl', 'Failed to load ACLs: ' + err.message, 'error');
+        showAlert('alert-acl', 'Failed to load ACLs or interface bindings: ' + err.message, 'error');
     }
 }
+
+// async function loadAcls() {
+//     try {
+//         loadInterfaceAclBindings(); // Load next panel
+//         const res = await fetch(`${API_BASE}/acls`);
+//         const data = await res.json();
+
+//         const container = document.getElementById('acl-list');
+//         container.innerHTML = data.map(acl => `
+//                     <div class="card">
+//                         <div class="card-header">
+//                             <h3 class="card-title">ACL ${acl.acl_index}: ${acl.tag}</h3>
+//                             <span class="badge badge-info">${acl.count} rule(s)</span>
+//                         </div>
+//                         <table>
+//                             <thead>
+//                                 <tr>
+//                                     <th>Action</th>
+//                                     <th>Protocol</th>
+//                                     <th>Source</th>
+//                                     <th>Destination</th>
+//                                     <th>Ports</th>
+//                                     <th style="text-align:right;">Actions</th>
+//                                 </tr>
+//                             </thead>
+//                             <tbody>
+//                                 ${acl.rules.map((rule, idx) => `
+//                                     <tr>
+//                                         <td><span class="badge badge-${rule.is_permit ? 'success' : 'danger'}">
+//                                             ${rule.is_permit ? 'PERMIT' : 'DENY'}
+//                                         </span></td>
+
+//                                         <td>${rule.proto === 0 ? 'ANY' : rule.proto === 1 ? 'ICMP' :
+//                                             rule.proto === 6 ? 'TCP' : rule.proto === 17 ? 'UDP' : rule.proto}</td>
+
+//                                         <td>${rule.src_prefix}</td>
+//                                         <td>${rule.dst_prefix}</td>
+
+//                                         <td>${rule.src_port_min}-${rule.src_port_max} → ${rule.dst_port_min}-${rule.dst_port_max}</td>
+
+//                                         <td style="text-align:right; white-space: nowrap;">
+//                                             <button class="btn btn-sm btn-primary" onclick="editRule(${acl.acl_index}, ${idx})">Edit</button>
+//                                             <button class="btn btn-sm btn-danger" onclick="deleteRule(${acl.acl_index}, ${idx})">Delete</button>
+//                                         </td>
+//                                     </tr>
+//                                 `).join('')}
+//                             </tbody>
+//                         </table>
+//                         <div style="margin-top: 10px;">
+//                             <button class="btn btn-sm btn-success" onclick="addRule(${acl.acl_index})">+ Add Rule</button>
+//                         </div>
+
+//                         <div style="margin-top: 15px; display: flex; align-items: center; gap: 10px;">
+//                             <select id="iface-select-${acl.acl_index}" class="form-select" style="width: 200px;">
+//                                 ${currentInterfaces.map(i => `<option value="${i.sw_if_index}">${i.name}</option>`).join('')}
+//                             </select>
+//                             <select id="direction-${acl.acl_index}" class="form-select" style="width: 150px;">
+//                                 <option value="true">Input</option>
+//                                 <option value="false">Output</option>
+//                             </select>
+//                             <button class="btn btn-success" onclick="applyAcl(${acl.acl_index}, true)">Apply to Interface</button>
+//                             <button class="btn btn-danger" onclick="applyAcl(${acl.acl_index}, false)">Remove from Interface</button>
+//                             <button class="btn btn-danger" onclick="deleteAcl(${acl.acl_index})" style="margin-left: auto;">Delete ACL</button>
+//                         </div>
+//                     </div>
+//                 `).join('');
+//     } catch (err) {
+//         showAlert('alert-acl', 'Failed to load ACLs: ' + err.message, 'error');
+//     }
+
+// }
+
+
+// async function loadInterfaceAclBindings() {
+//     try {
+//         const [interfacesRes, aclsRes] = await Promise.all([
+//             fetch(`${API_BASE}/aclinterfaces`),
+//             fetch(`${API_BASE}/acls`)
+//         ]);
+//         const interfaces = await interfacesRes.json();
+//         const acls = await aclsRes.json();
+
+//         // Map ACL index → tag
+//         const aclMap = {};
+//         acls.forEach(acl => {
+//             aclMap[acl.acl_index] = acl.tag;
+//         });
+
+//         const container = document.getElementById('acl-interface-bindings');
+//         container.innerHTML = `
+//             <h2>Interface ACL Bindings</h2>
+//             <div class="card">
+//                 <table>
+//                     <thead>
+//                         <tr>
+//                             <th>Interface</th>
+//                             <th>Input ACLs</th>
+//                             <th>Output ACLs</th>
+//                             <th>Actions</th>
+//                         </tr>
+//                     </thead>
+//                     <tbody>
+//                         ${interfaces.map(intf => `
+//                             <tr>
+//                                 <td>${intf.name}</td>
+//                                 <td>${intf.input_acls.length 
+//                                     ? intf.input_acls.map(i => aclMap[i] || i).join(', ') 
+//                                     : 'None'}</td>
+//                                 <td>${intf.output_acls.length 
+//                                     ? intf.output_acls.map(i => aclMap[i] || i).join(', ') 
+//                                     : 'None'}</td>
+//                                 <td>
+//                                     <button class="btn btn-sm btn-primary" onclick="modifyInterfaceAcls(${intf.sw_if_index})">
+//                                         Modify
+//                                     </button>
+//                                 </td>
+//                             </tr>
+//                         `).join('')}
+//                     </tbody>
+//                 </table>
+//             </div>
+//         `;
+//     } catch (err) {
+//         showAlert('alert-intf-acl', "Failed to load interface ACL bindings: " + err.message, "error");
+//     }
+// }
+
+
 
 async function deleteAcl(aclIndex) {
     if (!confirm('Delete this ACL?')) return;
