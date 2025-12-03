@@ -1,0 +1,17 @@
+create interface vmxnet3 0000:03:00.0 bind
+create interface vmxnet3 0000:04:00.0 bind
+create interface vmxnet3 0000:0b:00.0 bind
+create interface vmxnet3 0000:0c:00.0 bind
+create interface vmxnet3 0000:13:00.0 bind
+create interface vmxnet3 0000:1b:00.0 bind
+
+
+
+
+set interface state vmxnet3-0/b/0/0 up
+set interface ip address vmxnet3-0/b/0/0 10.0.0.1/24
+
+set interface state vmxnet3-0/1b/0/0 up
+set interface ip address vmxnet3-0/1b/0/0 3.3.3.3/24
+
+session enable
