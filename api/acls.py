@@ -2,10 +2,6 @@ from flask import Blueprint, jsonify, request
 from vpp_connection import get_vpp_for_request
 import ipaddress
 import traceback
-# import logging
-
-# logging.basicConfig(level=logging.DEBUG)
-# logger = logging.getLogger(__name__)
 
 acls_bp = Blueprint('acls', __name__)
 
@@ -16,48 +12,48 @@ def add_acl_rule(acl_index):
         v = get_vpp_for_request()
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
-        print(dir(v.api))
-        print(v.api.__dict__.keys())
+
         data = request.json
-        # logger.debug(dir(v.api))
-        # logger.debug(v.api.__dict__.keys())
         src_ip = data.get('src_ip', '0.0.0.0')
         dst_ip = data.get('dst_ip', '0.0.0.0')
 
         src_prefix_len = int(data.get('src_prefix_len', 0 if src_ip == '0.0.0.0' else 32))
         dst_prefix_len = int(data.get('dst_prefix_len', 0 if dst_ip == '0.0.0.0' else 32))
 
-        # Load VPP rule class
-        rule_cls = v.api._types['vl_api_acl_rule_t']
-
-        # Create new ACL rule struct
-        new_rule = rule_cls(
-            is_permit = 1 if data.get('action') == 'permit' else 0,
-            src_prefix = ipaddress.ip_network(f"{src_ip}/{src_prefix_len}", strict=False),
-            dst_prefix = ipaddress.ip_network(f"{dst_ip}/{dst_prefix_len}", strict=False),
-            proto = int(data.get('proto', 0)),
-            srcport_or_icmptype_first = int(data.get('src_port_min', 0)),
-            srcport_or_icmptype_last  = int(data.get('src_port_max', 65535)),
-            dstport_or_icmpcode_first = int(data.get('dst_port_min', 0)),
-            dstport_or_icmpcode_last  = int(data.get('dst_port_max', 65535)),
-            tcp_flags_mask = 0,
-            tcp_flags_value = 0
-        )
-
- 
         # Load existing ACL
         acl_dump = v.api.acl_dump(acl_index=acl_index)
         if not acl_dump:
             return jsonify({'error': 'ACL not found'}), 404
 
-        # Copy existing rule structs
-        existing_rules = list(acl_dump[0].r)
+        # Copy existing rules as dictionaries
+        existing_rules = []
+        for rule in acl_dump[0].r:
+            existing_rules.append({
+                'is_permit': rule.is_permit,
+                'src_prefix': rule.src_prefix,
+                'dst_prefix': rule.dst_prefix,
+                'proto': rule.proto,
+                'srcport_or_icmptype_first': rule.srcport_or_icmptype_first,
+                'srcport_or_icmptype_last': rule.srcport_or_icmptype_last,
+                'dstport_or_icmpcode_first': rule.dstport_or_icmpcode_first,
+                'dstport_or_icmpcode_last': rule.dstport_or_icmpcode_last,
+                'tcp_flags_mask': rule.tcp_flags_mask,
+                'tcp_flags_value': rule.tcp_flags_value
+            })
 
-        # Append our new struct rule
-        existing_rules.append(new_rule)
-
-        rule_cls = v.api._msg_definitions['vl_api_acl_rule_t']
-        print(dir(rule_cls))
+        # Append new rule as dictionary
+        existing_rules.append({
+            'is_permit': 1 if data.get('action') == 'permit' else 0,
+            'src_prefix': ipaddress.ip_network(f"{src_ip}/{src_prefix_len}", strict=False),
+            'dst_prefix': ipaddress.ip_network(f"{dst_ip}/{dst_prefix_len}", strict=False),
+            'proto': int(data.get('proto', 0)),
+            'srcport_or_icmptype_first': int(data.get('src_port_min', 0)),
+            'srcport_or_icmptype_last': int(data.get('src_port_max', 65535)),
+            'dstport_or_icmpcode_first': int(data.get('dst_port_min', 0)),
+            'dstport_or_icmpcode_last': int(data.get('dst_port_max', 65535)),
+            'tcp_flags_mask': 0,
+            'tcp_flags_value': 0
+        })
 
         # Replace ACL with updated rule list
         resp = v.api.acl_add_replace(
@@ -77,7 +73,6 @@ def add_acl_rule(acl_index):
         return jsonify({'error': str(e), 'trace': traceback.format_exc()}), 500
 
 
-
 @acls_bp.route('/api/acl/<int:acl_index>/rule/<int:rule_index>', methods=['DELETE'])
 def delete_acl_rule(acl_index, rule_index):
     """Delete a specific rule from an ACL"""
@@ -90,7 +85,22 @@ def delete_acl_rule(acl_index, rule_index):
         if not acl_dump:
             return jsonify({'error': f'ACL {acl_index} not found'}), 404
 
-        rules = list(acl_dump[0].r)
+        # Convert to dictionaries
+        rules = []
+        for rule in acl_dump[0].r:
+            rules.append({
+                'is_permit': rule.is_permit,
+                'src_prefix': rule.src_prefix,
+                'dst_prefix': rule.dst_prefix,
+                'proto': rule.proto,
+                'srcport_or_icmptype_first': rule.srcport_or_icmptype_first,
+                'srcport_or_icmptype_last': rule.srcport_or_icmptype_last,
+                'dstport_or_icmpcode_first': rule.dstport_or_icmpcode_first,
+                'dstport_or_icmpcode_last': rule.dstport_or_icmpcode_last,
+                'tcp_flags_mask': rule.tcp_flags_mask,
+                'tcp_flags_value': rule.tcp_flags_value
+            })
+
         if rule_index >= len(rules):
             return jsonify({'error': f'Rule index {rule_index} out of range'}), 400
 
@@ -124,25 +134,43 @@ def edit_acl_rule(acl_index, rule_index):
         if not acl_dump:
             return jsonify({'error': f'ACL {acl_index} not found'}), 404
 
-        rules = list(acl_dump[0].r)
+        # Convert to dictionaries
+        rules = []
+        for rule in acl_dump[0].r:
+            rules.append({
+                'is_permit': rule.is_permit,
+                'src_prefix': rule.src_prefix,
+                'dst_prefix': rule.dst_prefix,
+                'proto': rule.proto,
+                'srcport_or_icmptype_first': rule.srcport_or_icmptype_first,
+                'srcport_or_icmptype_last': rule.srcport_or_icmptype_last,
+                'dstport_or_icmpcode_first': rule.dstport_or_icmpcode_first,
+                'dstport_or_icmpcode_last': rule.dstport_or_icmpcode_last,
+                'tcp_flags_mask': rule.tcp_flags_mask,
+                'tcp_flags_value': rule.tcp_flags_value
+            })
+
         if rule_index >= len(rules):
             return jsonify({'error': f'Rule index {rule_index} out of range'}), 400
 
-        # Build updated rule
-        src_ip = data.get('src_ip', str(rules[rule_index].src_prefix.network_address))
-        dst_ip = data.get('dst_ip', str(rules[rule_index].dst_prefix.network_address))
-        src_prefix_len = int(data.get('src_prefix_len', rules[rule_index].src_prefix.prefixlen))
-        dst_prefix_len = int(data.get('dst_prefix_len', rules[rule_index].dst_prefix.prefixlen))
+        # Get current values for defaults
+        current_rule = rules[rule_index]
+        
+        src_ip = data.get('src_ip', str(current_rule['src_prefix'].network_address))
+        dst_ip = data.get('dst_ip', str(current_rule['dst_prefix'].network_address))
+        src_prefix_len = int(data.get('src_prefix_len', current_rule['src_prefix'].prefixlen))
+        dst_prefix_len = int(data.get('dst_prefix_len', current_rule['dst_prefix'].prefixlen))
 
+        # Update rule as dictionary
         rules[rule_index] = {
-            'is_permit': 1 if data.get('action', 'permit') == 'permit' else 0,
+            'is_permit': 1 if data.get('action', 'permit' if current_rule['is_permit'] else 'deny') == 'permit' else 0,
             'src_prefix': ipaddress.ip_network(f"{src_ip}/{src_prefix_len}", strict=False),
             'dst_prefix': ipaddress.ip_network(f"{dst_ip}/{dst_prefix_len}", strict=False),
-            'proto': int(data.get('proto', rules[rule_index].proto)),
-            'srcport_or_icmptype_first': int(data.get('src_port_min', rules[rule_index].srcport_or_icmptype_first)),
-            'srcport_or_icmptype_last': int(data.get('src_port_max', rules[rule_index].srcport_or_icmptype_last)),
-            'dstport_or_icmpcode_first': int(data.get('dst_port_min', rules[rule_index].dstport_or_icmpcode_first)),
-            'dstport_or_icmpcode_last': int(data.get('dst_port_max', rules[rule_index].dstport_or_icmpcode_last)),
+            'proto': int(data.get('proto', current_rule['proto'])),
+            'srcport_or_icmptype_first': int(data.get('src_port_min', current_rule['srcport_or_icmptype_first'])),
+            'srcport_or_icmptype_last': int(data.get('src_port_max', current_rule['srcport_or_icmptype_last'])),
+            'dstport_or_icmpcode_first': int(data.get('dst_port_min', current_rule['dstport_or_icmpcode_first'])),
+            'dstport_or_icmpcode_last': int(data.get('dst_port_max', current_rule['dstport_or_icmpcode_last'])),
             'tcp_flags_mask': 0,
             'tcp_flags_value': 0
         }
@@ -264,7 +292,6 @@ def get_interface_acls():
         return jsonify({"error": str(e), "trace": traceback.format_exc()}), 500
 
 
-
 @acls_bp.route('/api/acl', methods=['POST'])
 def create_acl():
     """Create a new ACL"""
@@ -304,7 +331,6 @@ def create_acl():
 
             acl_rules.append(acl_rule)
 
-        # ✔ KEEP LOGS
         print(f"Sending ACL '{tag}' with {len(acl_rules)} rule(s) to VPP:")
         for r in acl_rules:
             print(
@@ -331,7 +357,6 @@ def create_acl():
         return jsonify({'error': str(e), 'trace': error_trace}), 500
 
 
-
 @acls_bp.route('/api/acl/<int:acl_index>', methods=['DELETE'])
 def delete_acl(acl_index):
     """Delete an ACL by index"""
@@ -349,7 +374,6 @@ def delete_acl(acl_index):
         return jsonify({'error': str(e)}), 500
 
 
-
 @acls_bp.route('/api/acl/<int:acl_index>/interface/<int:sw_if_index>', methods=['POST', 'DELETE'])
 def apply_acl_to_interface(acl_index, sw_if_index):
     """Attach or detach an ACL to/from a specific interface"""
@@ -358,7 +382,7 @@ def apply_acl_to_interface(acl_index, sw_if_index):
         if not v:
             return jsonify({'error': 'Not connected to VPP'}), 500
 
-        data = request.get_json(force=True)
+        data = request.get_json(force=True) if request.data else {}
         is_input = data.get('is_input', True)
         is_add = 1 if request.method == 'POST' else 0
 

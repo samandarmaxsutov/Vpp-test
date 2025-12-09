@@ -8,7 +8,6 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link rel="stylesheet" href="../static/css/style.css">
-    <link href="//netdna.bootstrapcdn.com/twitter-bootstrap/2.3.2/css/bootstrap-combined.no-icons.min.css" rel="stylesheet">
     <link href="//netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
 
 
@@ -420,6 +419,75 @@
                 <button class="btn btn-success" onclick="createAcl()">Create
                     ACL</button>
                 <button class="btn btn-secondary" onclick="closeModal('acl-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Rule Modal -->
+    <div id="rule-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add Rule</div>
+
+            <div class="form-grid">
+                <!-- Action -->
+                <div class="form-group">
+                    <label class="form-label">Action</label>
+                    <select id="rule-action" class="form-select">
+                        <option value="permit">Permit</option>
+                        <option value="deny">Deny</option>
+                    </select>
+                </div>
+
+                <!-- Protocol -->
+                <div class="form-group">
+                    <label class="form-label">Protocol</label>
+                    <select id="rule-proto" class="form-select">
+                        <option value="0">ANY</option>
+                        <option value="6">TCP</option>
+                        <option value="17">UDP</option>
+                        <option value="1">ICMP</option>
+                    </select>
+                </div>
+
+
+
+                <!-- Source -->
+                <div class="form-group">
+                    <label class="form-label">Source IP / Prefix</label>
+                    <input id="rule-src-ip" class="form-input" placeholder="0.0.0.0/0">
+                </div>
+
+                <!-- Destination -->
+                <div class="form-group">
+                    <label class="form-label">Destination IP / Prefix</label>
+                    <input id="rule-dst-ip" class="form-input" placeholder="0.0.0.0/0">
+                </div>
+
+                <!-- Ports -->
+                <div class="form-group">
+                    <label class="form-label">Src Port Min</label>
+                    <input id="rule-src-port-min" class="form-input" type="number" value="0">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Src Port Max</label>
+                    <input id="rule-src-port-max" class="form-input" type="number" value="65535">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Dst Port Min</label>
+                    <input id="rule-dst-port-min" class="form-input" type="number" value="0">
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Dst Port Max</label>
+                    <input id="rule-dst-port-max" class="form-input" type="number" value="65535">
+                </div>
+            </div>
+
+            <div class="modal-footer" style="margin-top:20px; text-align:right;">
+                <button class="btn btn-secondary" onclick="closeModal('rule-modal')">Cancel</button>
+                <button id="save-rule-btn" class="btn btn-primary">Save Rule</button>
             </div>
         </div>
     </div>
