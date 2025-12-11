@@ -50,7 +50,9 @@ function switchTab(tabName) {
     if (tabName === 'interfaces') loadInterfaces();
     if (tabName === 'routing') loadRoutes();
     if (tabName === 'acl') loadAcls();
+    if (tabName === 'abf') loadAbf();
     if (tabName === 'nat') loadNat();
+    if (tabName === 'settings') loadSettings();
     if (tabName === 'urls') loadUrls();
 
 

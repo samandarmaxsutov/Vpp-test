@@ -34,6 +34,9 @@
                 <div class="nav-item" onclick="switchTab('acl')">
                     <i class="icon-shield"></i> Firewall Rules
                 </div>
+                <div class="nav-item" onclick="switchTab('abf')">
+                    <i class="icon-random"></i> ABF Policy
+                </div>
                 <div class="nav-item" onclick="switchTab('nat')">
                     <i class="icon-retweet"></i> NAT / SNAT
                 </div>
@@ -186,6 +189,66 @@
                 </div>
             </div>
 
+            <!-- ABF Tab -->
+
+            <div id="abf" class="tab-content">
+                <div class="header">
+                    <h1 class="header-title">ABF (ACL-Based Forwarding) Policy</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-primary" onclick="openAddAbfPolicyModal()">+ Add Policy</button>
+                        <button class="btn btn-primary" onclick="openAddAbfAttachmentModal()">+ Attach Policy</button>
+                        <button class="btn btn-secondary" onclick="loadAbf()">↻ Refresh</button>
+                    </div>
+                </div>
+                <div class="content-area">
+                    <div id="alert-abf"></div>
+
+                    <!-- ABF Policies -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">ABF Policies</h2>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Policy ID</th>
+                                    <th>ACL Index</th>
+                                    <th>Paths</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="abf-policies-table">
+                                <tr>
+                                    <td colspan="4" style="text-align:center">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- ABF Attachments -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">Policy Attachments to Interfaces</h2>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Policy ID</th>
+                                    <th>Interface</th>
+                                    <th>Priority</th>
+                                    <th>IP Version</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="abf-attachments-table">
+                                <tr>
+                                    <td colspan="5" style="text-align:center">Loading...</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
             <!-- NAT Tab -->
             <div id="nat" class="tab-content">
                 <div class="header">
@@ -308,6 +371,40 @@
                 </div>
             </div>
 
+            <!-- Settings Tab -->
+            <div id="settings" class="tab-content">
+                <div class="header">
+                    <h1 class="header-title">System & NAT Settings</h1>
+                    <div class="header-actions">
+                        <button class="btn btn-secondary" onclick="loadSettings()">↻ Refresh</button>
+                        <button class="btn btn-primary" onclick="saveSettings()">💾 Save Settings</button>
+                    </div>
+                </div>
+                <div class="content-area">
+                    <div id="alert-settings"></div>
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">NAT Timeouts</h2>
+                        </div>
+                        <div class="form-grid" style="padding:15px;">
+                            <label>UDP Timeout (sec)</label><input type="number" id="timeout-udp" class="form-input">
+                            <label>TCP Established Timeout (sec)</label><input type="number" id="timeout-tcp-established" class="form-input">
+                            <label>TCP Transitory Timeout (sec)</label><input type="number" id="timeout-tcp-transitory" class="form-input">
+                            <label>ICMP Timeout (sec)</label><input type="number" id="timeout-icmp" class="form-input">
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header">
+                            <h2 class="card-title">NAT44 Session Limit</h2>
+                        </div>
+                        <div class="form-grid" style="padding:15px;">
+                            <label>VRF ID</label><input type="number" id="session-limit-vrf" class="form-input" value="0">
+                            <label>Session Limit</label><input type="number" id="session-limit-value" class="form-input">
+                        </div>
+                    </div>
+                </div>
+            </div>
             <!-- URLs Tab -->
             <div id="urls" class="tab-content">
                 <div class="header">
@@ -570,7 +667,96 @@
     </div>
 
 
+    <!-- Add ABF Policy Modal -->
+    <div id="abf-policy-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add ABF Policy</div>
 
+            <div class="form-group">
+                <label class="form-label">Policy ID</label>
+                <input type="number" id="abf-policy-id" class="form-input" placeholder="e.g. 10" min="1">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">ACL Index</label>
+                <input type="number" id="abf-acl-index" class="form-input" placeholder="e.g. 0" value="0">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Paths</label>
+                <div id="abf-paths-container"></div>
+                <button class="btn btn-primary" onclick="addAbfPathRow()">+ Add Path</button>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="createAbfPolicy()">Create Policy</button>
+                <button class="btn btn-secondary" onclick="closeModal('abf-policy-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit ABF Policy Modal -->
+    <div id="edit-abf-policy-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Edit ABF Policy</div>
+
+            <div class="form-group">
+                <label class="form-label">Policy ID</label>
+                <input type="number" id="edit-abf-policy-id" class="form-input" disabled>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">ACL Index</label>
+                <input type="number" id="edit-abf-acl-index" class="form-input">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Paths</label>
+                <div id="edit-abf-paths-container"></div>
+                <button class="btn btn-primary" onclick="addAbfPathRow()">+ Add Path</button>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="updateAbfPolicy()">Update Policy</button>
+                <button class="btn btn-secondary" onclick="closeModal('edit-abf-policy-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add ABF Attachment Modal -->
+    <div id="abf-attachment-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Attach ABF Policy to Interface</div>
+
+            <div class="form-group">
+                <label class="form-label">Policy ID</label>
+                <input type="number" id="abf-attach-policy-id" class="form-input" placeholder="e.g. 10">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Interface</label>
+                <select id="abf-attach-interface" class="form-select"></select>
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">Priority</label>
+                <input type="number" id="abf-attach-priority" class="form-input" value="0" min="0">
+            </div>
+
+            <div class="form-group">
+                <label class="form-label">
+                    <input type="checkbox" id="abf-attach-ipv6"> IPv6
+                </label>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-top: 20px;">
+                <button class="btn btn-success" onclick="createAbfAttachment()">Attach Policy</button>
+                <button class="btn btn-secondary" onclick="closeModal('abf-attachment-modal')">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="../static/js/abf.js"></script>
     <script src="../static/js/utils.js"></script>
     <script src="../static/js/interfaces.js"></script>
     <script src="../static/js/routing.js"></script>
@@ -578,6 +764,7 @@
     <script src="../static/js/acls.js"></script>
     <script src="../static/js/nat.js"></script>
     <script src="../static/js/traffic.js"></script>
+    <script src="../static/js/settings.js"></script>
 
 
 </body>
