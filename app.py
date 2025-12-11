@@ -10,6 +10,7 @@ from api.stats import stats_bp
 from api.dashboard import dashboard_bp
 from api.dhcp import dhcp_bp
 from api.policer import policers_bp
+from api.abf import abf_bp
 
 # Import VPP teardown initializer
 from vpp_connection import init_vpp_teardown
@@ -28,6 +29,7 @@ def create_app():
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(dhcp_bp)
     app.register_blueprint(policers_bp)
+    app.register_blueprint(abf_bp)
 
     # Register per-request VPP teardown cleanup
     init_vpp_teardown(app)
